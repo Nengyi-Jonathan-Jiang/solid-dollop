@@ -379,7 +379,7 @@ var wgllib = (_=>
         }
     }
 
-    class OrthoCamera{
+    class OrthoCamera extends Camera{
         /**
          * @param {WebGL2RenderingContext} gl
          * @param {number[]} pos - position
@@ -389,6 +389,7 @@ var wgllib = (_=>
          * @param {number} far - far clipping plane
          */
         constructor(gl,pos,rot,scale,near,far){
+			super(gl);
             this.gl = gl;
             this.projection_matrix = m4.identity();
             this.near = near || 0.01;
@@ -407,6 +408,10 @@ var wgllib = (_=>
             this.isMatrixDirty = false;
             this.recompute_matrix();
         }
+
+		get scale(){return this.s}
+		set scale(s){this.s = s;this.isScaleDirty = true;}
+		
         rotate(a = 0,b = 0){
             if(a||b){
                 this.rot[0] += a;
@@ -425,18 +430,22 @@ var wgllib = (_=>
         }
         recompute_camera(){
             m4.identity(this.camera_matrix);
-            m4.xRotate(this.camera_matrix,this.rot[0],this.camera_matrix);
+            m4.xRotate(this.camera_matrix,this.rot[0] + Math.PI,this.camera_matrix);
             m4.yRotate(this.camera_matrix,this.rot[1],this.camera_matrix);
-            m4.translate(this.camera_matrix,this.pos[0],this.pos[1],this.pos[2],this.camera_matrix);
+			m4.translate(this.camera_matrix,this.pos[0],this.pos[1],this.pos[2],this.camera_matrix);
             this.isCamMatrixDirty = false;
             this.isMatrixDirty = true;
         }
         recompute_projection(){
             const aspect = this.gl.canvas.clientWidth / this.gl.canvas.clientHeight;
-            if(aspect !== this.aspect_ratio){
-                m4.orthographic(-aspect,aspect,-1,1,this.near,this.far,this.projection_matrix);
+            if(aspect !== this.aspect_ratio || this.isScaleDirty){
+				const w = 1/this.scale;
+				const h = this.gl.canvas.clientHeight/this.gl.canvas.clientWidth/this.scale;
+				m4.orthographic(-w/2,w/2,h/2,-h/2,this.far,this.near,this.projection_matrix);
                 this.aspect_ratio = aspect;
                 this.isMatrixDirty = true;
+
+				this.isScaleDirty = false;
             }
         }
         recompute_matrix(){
@@ -453,14 +462,14 @@ var wgllib = (_=>
             this.rotationSpeed = rotationSpeed;
         }
         update(deltaTime){
-            const mStep = this.movementSpeed * deltaTime,rStep = this.rotationSpeed * deltaTime;
+            const mStep = this.movementSpeed * deltaTime,rStep = this.rotationSpeed * deltaTime,fStep = this.flySpeed * deltaTime || mStep;
             let x = 0, y = 0, z = 0, a = 0, b = 0;
             if(wgllib.core.events.keysDown['w'])         z -= mStep;
             if(wgllib.core.events.keysDown['a'])         x -= mStep;
             if(wgllib.core.events.keysDown['s'])         z += mStep;
             if(wgllib.core.events.keysDown['d'])         x += mStep;
-            if(wgllib.core.events.keysDown[' '])         y -= mStep;
-            if(wgllib.core.events.keysDown['shift'])     y += mStep;
+            if(wgllib.core.events.keysDown[' '])         y -= fStep;
+            if(wgllib.core.events.keysDown['shift'])     y += fStep;
             if(wgllib.core.events.keysDown['arrowup'])   a += rStep;
             if(wgllib.core.events.keysDown['arrowdown']) a -= rStep;
             if(wgllib.core.events.keysDown['arrowleft']) b += rStep;
